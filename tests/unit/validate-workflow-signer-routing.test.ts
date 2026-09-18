@@ -205,6 +205,9 @@ describe("validateWorkflow — signer routing across signed-write action types",
     ["web3/write-contract", "web3/write-contract"],
     ["batch write-contract", BATCH_WRITE_CONTRACT_ACTION_TYPE],
     ["a protocol-write", "aave-v3/protocol-write-supply"],
+    ["approve-token", "web3/approve-token"],
+    ["transfer-funds", "web3/transfer-funds"],
+    ["transfer-token", "web3/transfer-token"],
   ])("warns for %s", (_label, actionType) => {
     expect(
       routingWarnings(

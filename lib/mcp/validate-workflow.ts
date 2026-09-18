@@ -607,12 +607,31 @@ function isAllowanceGated(gate: AllowanceGate, node: unknown): boolean {
 // Zodiac Role. The message therefore never describes routing as "unset" and
 // never suggests `"eoa"`, which is the branch that bypasses that policy.
 //
-// Scoped to `isWriteActionType`, which covers write-contract, its batch
-// variant and protocol-write. Widening to every mutating action would warn on
-// shipped templates: 12 of the seed workflows carry a `web3/approve-token`
-// node, and `validate-workflow-seed-workflows.test.ts` holds a warning
-// against a seed workflow to be a validator false positive. No seed workflow
-// sets `integrationId`, so this rule starts at zero.
+// Scoped to the action types `isWriteActionType` covers plus the three below.
+// No seed workflow sets `integrationId`, so this rule starts at zero against
+// the 43 workflows under `scripts/seed/workflows`.
+//
+// `lib/mcp/action-type.ts:33-46` keeps these three out of `isWriteActionType`
+// on purpose - their config carries no raw ABI, so the calldata-handoff route
+// cannot serve them and widening that helper would let them validate as
+// `workflowType: "write"` and then fail every MCP call. They resolve a signer
+// from `web3Connection` all the same - `approve-token-core.ts:262`,
+// `transfer-funds-core.ts:261`, `transfer-token-core.ts:388` - so
+// `integrationId` is inert on them for the same reason it is on a write.
+const SIGNER_ROUTED_ACTION_TYPES = new Set([
+  "web3/approve-token",
+  "web3/transfer-funds",
+  "web3/transfer-token",
+]);
+
+function isSignerRoutedActionType(actionType: unknown): boolean {
+  return (
+    isWriteActionType(actionType) ||
+    (typeof actionType === "string" &&
+      SIGNER_ROUTED_ACTION_TYPES.has(actionType))
+  );
+}
+
 function runSignerRoutingCheck(
   workflow: ValidatorWorkflow,
   warnings: ValidationIssue[]
@@ -622,7 +641,7 @@ function runSignerRoutingCheck(
   }
   for (const [idx, node] of workflow.nodes.entries()) {
     const cfg = readNodeActionConfig(node);
-    if (cfg === null || !isWriteActionType(cfg.actionType)) {
+    if (cfg === null || !isSignerRoutedActionType(cfg.actionType)) {
       continue;
     }
     if (typeof cfg.integrationId !== "string" || cfg.integrationId === "") {
